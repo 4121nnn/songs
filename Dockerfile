@@ -1,31 +1,17 @@
-# Use a multi-stage build to reduce image size
-FROM golang:1.22-alpine AS builder
-
-WORKDIR /myapp
-
-# Install build dependencies
-RUN apk add --no-cache gcc musl-dev
-
-# Copy go.mod and go.sum first to leverage caching
+FROM golang:1.22.8 AS builder
+WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
-
-# Copy the rest of the application code
 COPY . .
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags '-w -s' -a -o ./bin/api ./cmd/api \
-    && go build -ldflags '-w -s' -a -o ./bin/migrate ./cmd/migrate
+RUN CGO_ENABLED=0 GOOS=linux go build -o app cmd/api/main.go
 
-# Create a smaller final image
 FROM alpine:latest
+WORKDIR /root/
+COPY --from=builder /app/app .
 
-WORKDIR /myapp
-
-# Copy the binaries from the builder stage
-COPY --from=builder /myapp/bin/api ./bin/api
-COPY --from=builder /myapp/bin/migrate ./bin/migrate
-
-# Expose the port and run the API
-CMD ["./bin/api"]
+COPY --from=builder /app/.env .env
+COPY --from=builder /app/db db
 EXPOSE 8080
+CMD ["./app"]
+
