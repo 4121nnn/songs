@@ -2,7 +2,12 @@ package main
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/rs/zerolog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -33,6 +38,40 @@ func main() {
 	l := logger.New(c.Server.Debug)
 	v := validator.New()
 
+	db, err := setupDatabase(c)
+	if err != nil {
+		l.Fatal().Err(err).Msg("DB connection setup failure")
+		return
+	}
+
+	if c.DB.AutoMigrate {
+		if err := runMigrations(c, l); err != nil {
+			l.Fatal().Err(err).Msg("Migrations setup failure")
+			return
+		}
+	}
+
+	r := router.New(l, v, db)
+
+	handler := setupCors(c, r)
+
+	s := &http.Server{
+		Addr:         fmt.Sprintf(":%d", c.Server.Port),
+		Handler:      handler,
+		ReadTimeout:  c.Server.TimeoutRead,
+		WriteTimeout: c.Server.TimeoutWrite,
+		IdleTimeout:  c.Server.TimeoutIdle,
+	}
+
+	//handleGracefulShutdown(s, db, l)
+	l.Info().Msgf("Starting server %v", s.Addr)
+	if err := s.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		l.Fatal().Err(err).Msg("Server startup failure")
+	}
+}
+
+func setupDatabase(c *config.Conf) (*gorm.DB, error) {
+	dbString := fmt.Sprintf(fmtDBString, c.DB.Host, c.DB.Username, c.DB.Password, c.DB.DBName, c.DB.Port)
 	var logLevel gormlogger.LogLevel
 	if c.DB.Debug {
 		logLevel = gormlogger.Info
@@ -40,16 +79,43 @@ func main() {
 		logLevel = gormlogger.Error
 	}
 
-	dbString := fmt.Sprintf(fmtDBString, c.DB.Host, c.DB.Username, c.DB.Password, c.DB.DBName, c.DB.Port)
 	db, err := gorm.Open(gormPostgres.Open(dbString), &gorm.Config{Logger: gormlogger.Default.LogMode(logLevel)})
 	if err != nil {
-		l.Fatal().Err(err).Msg("DB connection start failure")
-		return
+		return nil, err
 	}
 
-	r := router.New(l, v, db)
+	return db, nil
+}
 
-	// Set up CORS options
+func runMigrations(c *config.Conf, l *zerolog.Logger) error {
+	dsn := fmt.Sprintf(fmtDBString, c.DB.Host, c.DB.Username, c.DB.Password, c.DB.DBName, c.DB.Port)
+	conn, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return fmt.Errorf("failed to open database connection: %w", err)
+	}
+	defer conn.Close()
+
+	driver, err := postgres.WithInstance(conn, &postgres.Config{})
+	if err != nil {
+		return fmt.Errorf("failed to create migrate driver: %w", err)
+	}
+
+	m, err := migrate.NewWithDatabaseInstance(
+		"file://db/migrations",
+		"postgres", driver)
+	if err != nil {
+		return fmt.Errorf("failed to create migrate instance: %w", err)
+	}
+
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return fmt.Errorf("failed to run migrations: %w", err)
+	}
+
+	l.Info().Msg("Migrations applied successfully")
+	return nil
+}
+
+func setupCors(c *config.Conf, r http.Handler) http.Handler {
 	var origin string
 	if c.FR.Port == 80 {
 		origin = fmt.Sprintf("http://%s", c.FR.Host)
@@ -64,17 +130,10 @@ func main() {
 		AllowedHeaders:   []string{"Content-Type", "Authorization"},
 	})
 
-	// Wrap the router with CORS middleware
-	handler := corsHandler.Handler(r)
+	return corsHandler.Handler(r)
+}
 
-	s := &http.Server{
-		Addr:         fmt.Sprintf(":%d", c.Server.Port),
-		Handler:      handler,
-		ReadTimeout:  c.Server.TimeoutRead,
-		WriteTimeout: c.Server.TimeoutWrite,
-		IdleTimeout:  c.Server.TimeoutIdle,
-	}
-
+func handleGracefulShutdown(s *http.Server, db *gorm.DB, l *zerolog.Logger) {
 	closed := make(chan struct{})
 	go func() {
 		sigint := make(chan os.Signal, 1)
@@ -83,7 +142,7 @@ func main() {
 
 		l.Info().Msgf("Shutting down server %v", s.Addr)
 
-		ctx, cancel := context.WithTimeout(context.Background(), c.Server.TimeoutIdle)
+		ctx, cancel := context.WithTimeout(context.Background(), s.IdleTimeout)
 		defer cancel()
 
 		if err := s.Shutdown(ctx); err != nil {
@@ -99,11 +158,6 @@ func main() {
 
 		close(closed)
 	}()
-
-	l.Info().Msgf("Starting server %v", s.Addr)
-	if err := s.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		l.Fatal().Err(err).Msg("Server startup failure")
-	}
 
 	<-closed
 	l.Info().Msgf("Server shutdown successfully")

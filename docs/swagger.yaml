@@ -114,6 +114,13 @@ paths:
       consumes:
       - application/json
       description: Create song
+      parameters:
+      - description: The song to create
+        in: body
+        name: song
+        required: true
+        schema:
+          $ref: '#/definitions/song.Song'
       produces:
       - application/json
       responses:

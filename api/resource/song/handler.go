@@ -112,20 +112,28 @@ func (a *API) List(w http.ResponseWriter, r *http.Request) {
 //	@failure		422	{object}	err.Errors
 //	@failure		500	{object}	err.Error
 //	@router			/ [post]
+//	@param			song	body	Song	true	"The song to create"
+//
+// The Song struct requires the following fields:
+// - Group (string): Name of the group or artist (required).
+// - Song (string): Title of the song (required).
+// - Text (string): Lyrics or text of the song (required).
+// - ReleaseDate (string): Release date of the song in YYYY-MM-DD format (required).
+// - Link (string): URL link related to the song (optional).
 func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 	reqID := ctxUtil.RequestID(r.Context())
 
 	a.logger.Debug().Str(l.KeyReqID, reqID).Msg("Create function started")
 
-	form := &Form{}
+	song := &Song{}
 
-	if err := json.NewDecoder(r.Body).Decode(form); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(song); err != nil {
 		a.logger.Error().Str(l.KeyReqID, reqID).Err(err).Msg("Failed to decode JSON")
 		e.BadRequest(w, e.RespJSONDecodeFailure)
 		return
 	}
 
-	if err := a.validator.Struct(form); err != nil {
+	if err := a.validator.Struct(song); err != nil {
 		respBody, err := json.Marshal(validatorUtil.ToErrResponse(err))
 		if err != nil {
 			a.logger.Error().Str(l.KeyReqID, reqID).Err(err).Msg("Failed to encode validation errors to JSON")
@@ -139,12 +147,11 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newSong := form.ToModel()
-	newSong.ID = uuid.New()
+	song.ID = uuid.New()
 
-	a.logger.Debug().Str(l.KeyReqID, reqID).Msgf("Creating new song: %+v", newSong)
+	a.logger.Debug().Str(l.KeyReqID, reqID).Msgf("Creating new song: %+v", song)
 
-	song, err := a.repository.Create(newSong)
+	song, err := a.repository.Create(song)
 	if err != nil {
 		a.logger.Error().Str(l.KeyReqID, reqID).Err(err).Msg("")
 		e.ServerError(w, e.RespDBDataInsertFailure)

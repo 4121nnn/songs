@@ -99,6 +99,17 @@ const docTemplate = `{
                     "songs"
                 ],
                 "summary": "Create song",
+                "parameters": [
+                    {
+                        "description": "The song to create",
+                        "name": "song",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/song.Song"
+                        }
+                    }
+                ],
                 "responses": {
                     "201": {
                         "description": "Created"
