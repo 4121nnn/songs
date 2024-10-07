@@ -24,6 +24,14 @@ type Song struct {
 	Link        string    `gorm:"column:link" json:"link"`
 }
 
+type SongRequest struct {
+	Group       string `json:"group" binding:"required"`
+	Song        string `json:"song" binding:"required"`
+	Text        string `json:"text" binding:"required"`
+	ReleaseDate string `json:"release_date" binding:"required"`
+	Link        string `json:"link" binding:"required"`
+}
+
 type Songs []*Song
 
 func (s *Song) ToDto() *DTO {

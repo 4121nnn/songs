@@ -72,7 +72,7 @@ func (r *Repository) GetLyrics(group, song string, page, pageSize int) (*paginat
 	}
 
 	// Split the lyrics by newline character to get individual verses
-	allVerses := strings.Split(s.Text, "\\n")
+	allVerses := strings.Split(s.Text, "\n")
 	total := len(allVerses)
 
 	r.logger.Debug().Msgf("Total verses found: %d", total)

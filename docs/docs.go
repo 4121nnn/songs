@@ -101,12 +101,12 @@ const docTemplate = `{
                 "summary": "Create song",
                 "parameters": [
                     {
-                        "description": "The song to create",
+                        "description": "The song details for creation",
                         "name": "song",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/song.Song"
+                            "$ref": "#/definitions/song.SongRequest"
                         }
                     }
                 ],
@@ -180,7 +180,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved the song lyrics",
                         "schema": {
                             "$ref": "#/definitions/song.DTO"
                         }
@@ -435,18 +435,45 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "song.SongRequest": {
+            "type": "object",
+            "required": [
+                "group",
+                "link",
+                "release_date",
+                "song",
+                "text"
+            ],
+            "properties": {
+                "group": {
+                    "type": "string"
+                },
+                "link": {
+                    "type": "string"
+                },
+                "release_date": {
+                    "type": "string"
+                },
+                "song": {
+                    "type": "string"
+                },
+                "text": {
+                    "type": "string"
+                }
+            }
         }
     }
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.0",
-	Host:             "localhost:8080",
-	BasePath:         "/v1",
+	Version:          "",
+	Host:             "",
+	BasePath:         "",
 	Schemes:          []string{},
-	Title:            "Songs Library",
-	Description:      "This is test project for Effective Mobile",
+	Title:            "",
+	Description:      "",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

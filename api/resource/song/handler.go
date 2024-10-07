@@ -112,14 +112,14 @@ func (a *API) List(w http.ResponseWriter, r *http.Request) {
 //	@failure		422	{object}	err.Errors
 //	@failure		500	{object}	err.Error
 //	@router			/ [post]
-//	@param			song	body	Song	true	"The song to create"
+//	@param			song	body	SongRequest	true	"The song details for creation"
 //
 // The Song struct requires the following fields:
 // - Group (string): Name of the group or artist (required).
 // - Song (string): Title of the song (required).
 // - Text (string): Lyrics or text of the song (required).
 // - ReleaseDate (string): Release date of the song in YYYY-MM-DD format (required).
-// - Link (string): URL link related to the song (optional).
+// - Link (string): URL link related to the song (required).
 func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 	reqID := ctxUtil.RequestID(r.Context())
 
@@ -222,7 +222,7 @@ func (a *API) Read(w http.ResponseWriter, r *http.Request) {
 //		@produce		json
 //		@param			group	query		string	true	"Group name"
 //		@param			song	query		string	true	"Song name"
-//		@success		200		{object}	DTO
+//		@success		200		{object}	DTO     "Successfully retrieved the song lyrics"
 //		@failure		400		{object}	err.Error
 //		@failure		404
 //		@failure		500	{object}	err.Error

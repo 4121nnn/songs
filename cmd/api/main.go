@@ -1,28 +1,23 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"fmt"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/rs/cors"
 	"github.com/rs/zerolog"
+	gormPostgres "gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
 	"net/http"
-	"os"
-	"os/signal"
 	"songs/api/router"
 	"songs/config"
 	"songs/util/logger"
 	"songs/util/validator"
 	"strconv"
-	"syscall"
-
-	_ "github.com/golang-migrate/migrate/v4/source/file"
-	"github.com/rs/cors"
-	gormPostgres "gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	gormlogger "gorm.io/gorm/logger"
 )
 
 const fmtDBString = "host=%s user=%s password=%s dbname=%s port=%d sslmode=disable"
@@ -63,8 +58,7 @@ func main() {
 		IdleTimeout:  c.Server.TimeoutIdle,
 	}
 
-	//handleGracefulShutdown(s, db, l)
-	l.Info().Msgf("Starting server %v", s.Addr)
+	l.Info().Msgf("Sever started %v", s.Addr)
 	if err := s.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		l.Fatal().Err(err).Msg("Server startup failure")
 	}
@@ -131,34 +125,4 @@ func setupCors(c *config.Conf, r http.Handler) http.Handler {
 	})
 
 	return corsHandler.Handler(r)
-}
-
-func handleGracefulShutdown(s *http.Server, db *gorm.DB, l *zerolog.Logger) {
-	closed := make(chan struct{})
-	go func() {
-		sigint := make(chan os.Signal, 1)
-		signal.Notify(sigint, os.Interrupt, syscall.SIGTERM)
-		<-sigint
-
-		l.Info().Msgf("Shutting down server %v", s.Addr)
-
-		ctx, cancel := context.WithTimeout(context.Background(), s.IdleTimeout)
-		defer cancel()
-
-		if err := s.Shutdown(ctx); err != nil {
-			l.Error().Err(err).Msg("Server shutdown failure")
-		}
-
-		sqlDB, err := db.DB()
-		if err == nil {
-			if err = sqlDB.Close(); err != nil {
-				l.Error().Err(err).Msg("DB connection closing failure")
-			}
-		}
-
-		close(closed)
-	}()
-
-	<-closed
-	l.Info().Msgf("Server shutdown successfully")
 }
